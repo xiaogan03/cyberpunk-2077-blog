@@ -258,6 +258,21 @@
     </main>
 
     <script>
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                const modal = document.getElementById('decrypt-modal');
+                const bar = document.getElementById('decrypt-bar');
+                const status = document.getElementById('status-text');
+                modal.style.display = 'none';
+                bar.style.width = '0%';
+                status.innerText = "> ACCESSING_ENCRYPTED_SECTOR...";
+                status.style.color = "#fff";
+                document.querySelector('main').style.transform = '';
+                document.querySelector('main').classList.remove('fade-out-effect');
+                document.querySelector('header').classList.remove('fade-out-effect');
+            }
+        });
+
         function showResume() {
             const resume = document.getElementById('resume-data');
             const arrow = document.getElementById('resume-arrow');
