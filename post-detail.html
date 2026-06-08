@@ -324,13 +324,7 @@
                     clearInterval(interval);
                     modal.classList.add('fade-out-effect');
                     panel.classList.add('fade-out-effect');
-                    setTimeout(() => {
-                        if (document.referrer && document.referrer.includes('blog.html')) {
-                            history.back();
-                        } else {
-                            window.location.href = 'blog.html';
-                        }
-                    }, 800);
+                    setTimeout(() => { window.location.href = 'blog.html'; }, 800);
                 }
             }, 400);
         }
