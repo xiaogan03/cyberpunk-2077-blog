@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>NIGHT CITY // NETRUNNER_LOG</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --cb-yellow: #fcee0a;
+            --cb-blue: #00f0ff;
+            --cb-red: #ff0055;
+            --cb-dark: #080808;
+            --cb-gray: #1a1a1a;
+            --cb-text: #ffffff;
+            --font-cyber: 'Rajdhani', sans-serif;
+            --scan-density: 1px;
+            --glitch-speed: 2s;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background-color: var(--cb-dark);
+            color: var(--cb-text);
+            font-family: var(--font-cyber);
+            background-image: linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+        .cyber-nav {
+            margin: 20px 40px;
+            padding: 0 40px;
+            height: 55px;
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            gap: 30px;
+            background-color: #fcee0a;
+            color: #000;
+            clip-path: polygon(15px 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%, 0 15px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.05);
+            font-size: 14px;
+            letter-spacing: 0.5px;
+            font-weight: bold;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            text-transform: uppercase;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .header-title { font-size: 24px; font-weight: 900; letter-spacing: 2px; cursor: pointer; }
+
+        .nav-item {
+            position: relative;
+            overflow: hidden;
+            transition: opacity 0.2s;
+            opacity: 0.8;
+            cursor: pointer;
+        }
+        .nav-item::before {
+            content: '';
+            position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0,0,0,0.2), transparent);
+            transition: 0.5s;
+        }
+        .nav-item:hover::before { left: 100%; }
+        .nav-item:hover {
+            opacity: 1;
+            text-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        .menu-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #333;
+            color: #fff;
+            cursor: pointer;
+            font-size: 15px;
+            transition: background 0.2s;
+            border-left: 4px solid transparent;
+        }
+
+        .menu-item:hover {
+            background: #1a1a1a;
+            border-left: 4px solid var(--cb-yellow);
+        }
+        main { max-width: 1400px; margin: 40px auto; padding: 0 40px; display: grid; grid-template-columns: 300px 1fr; gap: 40px; }
+        .sidebar { display: flex; flex-direction: column; gap: 20px; }
+        .profile-card { background-color: var(--cb-gray); border: 1px solid #333; border-left: 4px solid var(--cb-yellow); padding: 20px; clip-path: polygon(0 0, 95% 0, 100% 20%, 100% 100%, 5% 100%, 0 80%); }
+        .profile-title { color: var(--cb-yellow); font-size: 16px; margin-bottom: 15px; border-bottom: 1px dashed #444; padding-bottom: 5px; font-weight: bold; }
+        .stat-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 13px; }
+        .stat-value { color: var(--cb-blue); font-weight: bold; }
+        .content-area { display: flex; flex-direction: column; gap: 30px; }
+        .post-card { background-color: var(--cb-gray); border: 1px solid #222; padding: 30px; position: relative; transition: all 0.3s ease; clip-path: polygon(0 0, 95% 0, 100% 15%, 100% 100%, 5% 100%, 0 85%); }
+        .post-card:hover { border-color: var(--cb-blue); transform: translateX(10px); box-shadow: -5px 0 0 var(--cb-blue); }
+        .post-meta { display: flex; gap: 20px; font-size: 12px; color: var(--cb-blue); margin-bottom: 15px; }
+        .post-title { font-size: 22px; color: #fff; margin-bottom: 15px; }
+        .post-excerpt { color: #aaa; font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
+        .read-btn { background: transparent; color: var(--cb-yellow); border: 1px solid var(--cb-yellow); padding: 8px 20px; font-size: 12px; font-weight: bold; cursor: pointer; clip-path: polygon(0 0, 85% 0, 100% 50%, 100% 100%, 15% 100%, 0 50%); transition: all 0.2s; }
+        .read-btn:hover { background: var(--cb-yellow); color: #000; }
+
+        @keyframes cyber-proj {
+            0% { transform: scale(0.95); opacity: 0; filter: blur(10px) brightness(1.5); }
+            100% { transform: scale(1); opacity: 1; filter: blur(0px) brightness(1); }
+        }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 9999; display: none;
+            justify-content: center; align-items: center; flex-direction: column;
+            animation: cyber-proj 0.4s cubic-bezier(0, 0.8, 0.2, 1) forwards;
+        }
+        .decrypt-box {
+            padding: 40px; width: 500px;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        @keyframes jitter-shape {
+            0% { clip-path: polygon(0 0, 90% 0, 100% 15%, 100% 100%, 10% 100%, 0 85%); }
+            15% { clip-path: polygon(0 2px, 92% 0, 100% 13%, 98% 100%, 12% 100%, 2px 87%); }
+            30% { clip-path: polygon(0 0, 90% 0, 100% 15%, 100% 100%, 10% 100%, 0 85%); }
+            100% { clip-path: polygon(0 0, 90% 0, 100% 15%, 100% 100%, 10% 100%, 0 85%); }
+        }
+
+        .cyber-panel {
+            clip-path: polygon(0 0, 90% 0, 100% 15%, 100% 100%, 10% 100%, 0 85%);
+            background: #000;
+            border: 2px solid var(--cb-blue);
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+            animation: border-pulse 1s infinite, jitter-shape 5s infinite ease-in-out;
+        }
+        .cyber-progress-container {
+            width: 100%; height: 12px;
+            border: 1px solid var(--cb-blue);
+            position: relative; background: transparent;
+            clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%);
+            margin-top: 20px;
+        }
+
+        .cyber-progress-fill {
+            height: 100%;
+            background: var(--cb-blue);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .scanlines {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-image: repeating-linear-gradient(
+                0deg,
+                rgba(0, 240, 255, 0.03) 0px,
+                rgba(0, 240, 255, 0.03) var(--scan-density),
+                transparent var(--scan-density),
+                transparent calc(var(--scan-density) * 2)
+            );
+            pointer-events: none; z-index: 10;
+        }
+
+        .fade-out-effect {
+            transition: all 0.6s ease-out;
+            filter: blur(20px) brightness(0);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        @keyframes border-pulse {
+            0% { border-color: var(--cb-blue); box-shadow: 0 0 5px var(--cb-blue); }
+            50% { border-color: #fff; box-shadow: 0 0 15px #fff; }
+            100% { border-color: var(--cb-blue); box-shadow: 0 0 5px var(--cb-blue); }
+        }
+
+    </style>
+</head>
+<body>
+    <div class="scanlines"></div>
+
+    <div id="decrypt-modal" class="modal-overlay">
+        <div class="decrypt-box cyber-panel">
+            <h2 style="color:var(--cb-blue); margin-bottom: 20px; text-align: center; width: 100%;">[DECRYPTING_SECURE_FILE]</h2>
+            <div id="status-text" style="color:#fff; font-size: 14px;">> ACCESSING_ENCRYPTED_SECTOR...</div>
+            <div class="cyber-progress-container"><div id="decrypt-bar" class="cyber-progress-fill"></div></div>
+        </div>
+    </div>
+
+    <header class="cyber-nav">
+        <div class="header-title" onclick="var p=document.getElementById('settings-panel');p.style.display=(p.style.display==='flex'?'none':'flex')">V_TERMINAL // DATABASE</div>
+    </header>
+
+    <div id="settings-panel" style="display:none; position:fixed; top:95px; left:40px; width:480px; background:#000; border:2px solid var(--cb-yellow); padding:0; z-index:1000; box-shadow:0 10px 30px rgba(0,0,0,0.8);">
+        <div class="menu-item" onclick="showResume()" style="white-space:nowrap;">
+            [ACCESS_FILE: CV.DAT] <span id="resume-arrow" style="color:var(--cb-yellow);">▼</span>
+        </div>
+
+        <div id="resume-data" style="display:none; padding:20px; font-size:14px; color:#00ff41; line-height:1.8; font-family:'Courier New', monospace; background:#080808; border-bottom:1px solid #333;">
+            <div style="color:var(--cb-blue);">> ACCESSING_FILE: CV_GAN_QIANG.DAT</div>
+            <div style="color:var(--cb-yellow);">> DECRYPTION: SUCCESS</div>
+            <div style="color:#333; margin:6px 0;">----------------------------</div>
+            <div>> <span style="color:var(--cb-blue);">ID</span>: GAN_QIANG</div>
+            <div>> <span style="color:var(--cb-blue);">EDU</span>: 桂林信息科技学院</div>
+            <div>> <span style="color:var(--cb-blue);">INTERN</span>: 中交二航局</div>
+            <div>> <span style="color:var(--cb-blue);">CERT</span>: 电工证 | ISO9000内审员</div>
+            <div>> <span style="color:var(--cb-blue);">TOOLS</span>: AutoCAD | 嘉立创EDA</div>
+            <div style="color:#333; margin:6px 0;">----------------------------</div>
+            <div style="color:#555;">> END_OF_RECORD</div>
+        </div>
+
+    </div>
+    <main>
+        <aside class="sidebar">
+            <div class="profile-card">
+                <div class="profile-title">特工档案 // PROFILE</div>
+                <div class="stat-row"><span>代号:</span> <span class="stat-value">V_ENGINEER</span></div>
+            </div>
+        </aside>
+        <section class="content-area">
+            <article class="post-card">
+                <div class="post-meta"><span>[ 协议: 加密 ]</span></div>
+                <h2 class="post-title">基于 PWM 的直流电机调速器底层重构</h2>
+                <p class="post-excerpt">深入分析基于STM32F411CEU6的电机调速控制，包含闭环控制算法及三重硬件安全保护逻辑。</p>
+                <button class="read-btn" onclick="startDecryption('post-detail.html')">解码全文_</button>
+            </article>
+            <article class="post-card">
+                <div class="post-meta"><span>[ 协议: 加密 ]</span></div>
+                <h2 class="post-title">嘉立创EDA四层板Layout实战</h2>
+                <p class="post-excerpt">从原理图到Gerber文件，完整记录高速信号走线、电源层分割及阻抗匹配的设计决策过程。</p>
+                <button class="read-btn" onclick="startDecryption('post-detail.html')">解码全文_</button>
+            </article>
+            <article class="post-card">
+                <div class="post-meta"><span>[ 协议: 公开 ]</span></div>
+                <h2 class="post-title">AutoCAD 电气布线自动化脚本</h2>
+                <p class="post-excerpt">基于AutoLISP的二次开发，实现配电柜接线图的自动生成，减少人工布线设计时间约70%。</p>
+                <button class="read-btn" onclick="startDecryption('post-detail.html')">解码全文_</button>
+            </article>
+            <article class="post-card">
+                <div class="post-meta"><span>[ 协议: 加密 ]</span></div>
+                <h2 class="post-title">基于 STM32 的传感器数据采集终端</h2>
+                <p class="post-excerpt">多通道ADC同步采集，DMA缓冲+环形队列，通过RS485 Modbus协议上传至上位机。</p>
+                <button class="read-btn" onclick="startDecryption('post-detail.html')">解码全文_</button>
+            </article>
+            <article class="post-card">
+                <div class="post-meta"><span>[ 协议: 公开 ]</span></div>
+                <h2 class="post-title">ISO9000 质量管理体系内审记录</h2>
+                <p class="post-excerpt">中交二航局实习期间，参与内部审核流程，编制不符合项报告及纠正措施跟踪验证。</p>
+                <button class="read-btn" onclick="startDecryption('post-detail.html')">解码全文_</button>
+            </article>
+            <article class="post-card">
+                <div class="post-meta"><span>[ 协议: 加密 ]</span></div>
+                <h2 class="post-title">电工实操：三相异步电机星三角启动</h2>
+                <p class="post-excerpt">手持电工证，熟练掌握继电接触器控制线路的安装、调试与故障排查。</p>
+                <button class="read-btn" onclick="startDecryption('post-detail.html')">解码全文_</button>
+            </article>
+            <article class="post-card">
+                <div class="post-meta"><span>[ 协议: 加密 ]</span></div>
+                <h2 class="post-title">TB6612 驱动芯片深度测试报告</h2>
+                <p class="post-excerpt">不同PWM频率下的发热曲线、死区时间对效率的影响、短路保护响应时间实测数据。</p>
+                <button class="read-btn" onclick="startDecryption('post-detail.html')">解码全文_</button>
+            </article>
+        </section>
+    </main>
+
+    <script>
+        function showResume() {
+            const resume = document.getElementById('resume-data');
+            const arrow = document.getElementById('resume-arrow');
+            if (resume.style.display === 'none') {
+                resume.style.display = 'block';
+                arrow.textContent = '▲';
+            } else {
+                resume.style.display = 'none';
+                arrow.textContent = '▼';
+            }
+        }
+
+        function startDecryption(targetUrl) {
+            const modal = document.getElementById('decrypt-modal');
+            const bar = document.getElementById('decrypt-bar');
+            const status = document.getElementById('status-text');
+            modal.style.display = 'flex';
+            modal.style.animation = 'none';
+            modal.offsetHeight;
+            modal.style.animation = 'cyber-proj 0.4s cubic-bezier(0, 0.8, 0.2, 1) forwards';
+
+            const stages = [
+                "> ACCESSING_ENCRYPTED_SECTOR...",
+                "> BYPASSING_ICE...",
+                "> DECRYPTING_PACKETS...",
+                "> FINALIZING_ACCESS..."
+            ];
+            let progress = 0;
+            let stageIdx = 0;
+
+            const interval = setInterval(() => {
+                progress += Math.floor(Math.random() * 8) + 2;
+                bar.style.width = progress + '%';
+
+                if (progress > (stageIdx + 1) * 25) {
+                    stageIdx++;
+                    if (stages[stageIdx]) status.innerText = stages[stageIdx];
+                }
+
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    status.innerText = "> ACCESS_GRANTED";
+                    status.style.color = "var(--cb-yellow)";
+                    document.querySelector('main').style.transition = "transform 0.5s ease-in";
+                    document.querySelector('main').style.transform = "scale(0.9)";
+                    document.querySelector('main').classList.add('fade-out-effect');
+                    document.querySelector('header').classList.add('fade-out-effect');
+                    setTimeout(() => { window.location.href = targetUrl; }, 600);
+                }
+            }, 100);
+        }
+    </script>
+</body>
+</html>

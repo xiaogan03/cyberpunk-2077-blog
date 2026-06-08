@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>TERMINAL_ACCESS // BRAINDANCE_DATA</title>
+    <style>
+        :root {
+            --cb-yellow: #fcee0a;
+            --cb-blue: #00f0ff;
+            --cb-red: #ff0055;
+            --cb-bg: #030303;
+        }
+
+        body {
+            background-color: var(--cb-bg);
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 40px;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* 退出时的平滑消融特效 */
+        .fade-out-effect {
+            transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            filter: blur(20px) brightness(0);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* CRT 扫描线质感 */
+        .crt-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.3) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* 硬核面板容器 */
+        .terminal-panel {
+            border: 2px solid var(--cb-blue);
+            padding: 40px;
+            position: relative;
+            background: #000;
+            flex: 1;
+        }
+
+        /* 四角定位角标 */
+        .corner-marker {
+            position: absolute; width: 20px; height: 20px;
+            border: 4px solid var(--cb-yellow);
+        }
+
+        h1 { color: var(--cb-yellow); font-size: 32px; margin-bottom: 30px; text-transform: uppercase; cursor: default; }
+
+        @keyframes glitch-header {
+            0% { transform: skew(0deg); }
+            20% { transform: skew(5deg); color: var(--cb-red); }
+            40% { transform: skew(-5deg); color: var(--cb-blue); }
+            60% { transform: skew(0deg); color: var(--cb-yellow); }
+            100% { transform: skew(0deg); }
+        }
+        h1:hover { animation: glitch-header 0.3s linear; }
+        
+        .data-grid { display: grid; grid-template-columns: 1fr 350px; gap: 50px; height: 85%; }
+        .data-block { border-bottom: 1px solid #333; padding: 20px 0; }
+        .label { color: var(--cb-blue); font-size: 14px; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .content { color: #eee; font-size: 16px; line-height: 1.8; }
+        
+        /* 故障风格参数矩阵 */
+        .glitch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px; }
+        .param-box { background: #111; padding: 12px; border: 1px solid #333; }
+        
+        /* 仪表盘 */
+        .hud-meter { height: 8px; background: #111; border: 1px solid #333; margin: 10px 0; }
+        .hud-fill { height: 100%; background: var(--cb-yellow); transition: width 1s ease-out; }
+
+        .cyber-progress-container {
+            width: 100%; height: 12px;
+            border: 1px solid var(--cb-blue);
+            position: relative; background: transparent;
+            clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%);
+            margin-top: 20px;
+        }
+
+        .cyber-progress-fill {
+            height: 100%;
+            background: var(--cb-blue);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        .btn-exit {
+            background: var(--cb-blue);
+            color: #000;
+            padding: 12px 24px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            border: none;
+            margin-top: 30px;
+            transition: all 0.2s;
+        }
+
+        @keyframes cyber-proj {
+            0% { transform: scale(0.95); opacity: 0; filter: blur(10px) brightness(1.5); }
+            100% { transform: scale(1); opacity: 1; filter: blur(0px) brightness(1); }
+        }
+
+        .hidden-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 2000; justify-content: center; align-items: center;
+            animation: cyber-proj 0.4s cubic-bezier(0, 0.8, 0.2, 1) forwards;
+        }
+
+        .glitch-border {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.02) 5px, rgba(255,255,255,0.02) 10px);
+            pointer-events: none; z-index: 1001;
+        }
+        @keyframes border-pulse-red {
+            0% { border-color: var(--cb-red); box-shadow: 0 0 5px var(--cb-red); }
+            50% { border-color: #ff4d7a; box-shadow: 0 0 15px rgba(255, 0, 85, 0.6); }
+            100% { border-color: var(--cb-red); box-shadow: 0 0 5px var(--cb-red); }
+        }
+
+        .modal-content {
+            padding: 40px; text-align: center; width: 500px;
+        }
+
+        @keyframes jitter-shape {
+            0% { clip-path: polygon(0 0, 90% 0, 100% 15%, 100% 100%, 10% 100%, 0 85%); }
+            15% { clip-path: polygon(0 2px, 92% 0, 100% 13%, 98% 100%, 12% 100%, 2px 87%); }
+            30% { clip-path: polygon(0 0, 90% 0, 100% 15%, 100% 100%, 10% 100%, 0 85%); }
+            100% { clip-path: polygon(0 0, 90% 0, 100% 15%, 100% 100%, 10% 100%, 0 85%); }
+        }
+
+        .cyber-panel {
+            clip-path: polygon(0 0, 90% 0, 100% 15%, 100% 100%, 10% 100%, 0 85%);
+            background: #000;
+            border: 2px solid var(--cb-blue);
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+        }
+
+        .cyber-panel-warn {
+            border-color: var(--cb-red);
+            box-shadow: 0 0 15px rgba(255, 0, 85, 0.3);
+            animation: border-pulse-red 1s infinite, jitter-shape 5s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="glitch-border"></div>
+
+    <div id="loading-screen" style="position:fixed; top:0; left:0; width:100%; height:100%; background:#000; z-index:999; display:flex; flex-direction:column; justify-content:center; align-items:center; color:var(--cb-yellow); font-family:'Courier New', Courier, monospace;">
+        <div id="loading-text" style="margin-bottom:20px; font-size:14px;">> 初始化数据包...</div>
+        <div style="width:300px; height:8px; border:1px solid var(--cb-yellow);">
+            <div id="loading-bar" style="width:0%; height:100%; background:var(--cb-yellow); transition: width 0.1s linear;"></div>
+        </div>
+        <div id="loading-pct" style="margin-top:10px; font-size:12px; color:var(--cb-blue);">0%</div>
+    </div>
+
+    <div class="crt-overlay"></div>
+
+    <div id="purge-modal" class="hidden-modal">
+        <div class="modal-content cyber-panel cyber-panel-warn">
+            <h2 style="color:var(--cb-red); font-size: 24px;">[WARNING: TRACE DETECTED]</h2>
+            <div id="purge-log" style="font-size: 14px; margin: 20px 0; color: #fff; min-height: 22px;"></div>
+            <div class="cyber-progress-container" style="border-color: var(--cb-red);"><div id="purge-bar" class="cyber-progress-fill" style="background: var(--cb-red);"></div></div>
+        </div>
+    </div>
+
+    <div class="terminal-panel" id="main-panel">
+        <div class="corner-marker" style="top:-5px; left:-5px; border-right:none; border-bottom:none;"></div>
+        <div class="corner-marker" style="top:-5px; right:-5px; border-left:none; border-bottom:none;"></div>
+
+        <div class="data-grid">
+            <div>
+                <h1 onmouseover="this.style.animation='glitch-header 0.3s'">> [PROJECT: PWM_CTRL_UNIT // CLASS_A]</h1>
+                
+                <div class="data-block">
+                    <div class="label">[FILE_ARCHIVE: PROJECT_SPEC]</div>
+                    <div class="content">基于 ARM Cortex-M4 (STM32F411CEU6) 的闭环控制系统。通过 MOSFET H桥(TB6612)驱动，利用电机尾部 GMR 编码器反馈转速，实现 0-300RPM 的平滑调速。</div>
+                </div>
+
+                <div class="data-block">
+                    <div class="label">[NETRUNNING_DEBUG_LOG]</div>
+                    <div class="content">
+                        • 编码器 4倍频处理：消除 16位计数器在跨周期时的脉冲跳变，软件维护 32位累计值。<br>
+                        • 信号调理：采用 DMA 循环缓冲技术，通过 32点均值滤波处理 ADC 电流采样，残余波动 < 5mA。<br>
+                        • PID 控制策略：采样位置式 PID 算法，参数整定为 Kp=0.25, Ki=0.1, Kd=0.005。
+                    </div>
+                </div>
+
+                <div class="data-block">
+                    <div class="label">[ICE_BREAKING_PROTOCOL]</div>
+                    <div class="content">集成过流(>0.7A)、ADC饱和、堵转(>600ms)三重保护。任一条件触发即刻拉低 STBY 引脚并置零 PWM，锁定系统 3000ms。</div>
+                </div>
+
+                <div class="glitch-grid">
+                    <div class="param-box"><div class="label" style="border:none;">PID_KP</div><div class="content">0.25</div></div>
+                    <div class="param-box"><div class="label" style="border:none;">PWM_FREQ</div><div class="content">50kHz</div></div>
+                    <div class="param-box"><div class="label" style="border:none;">ADC_RES</div><div class="content">12BIT</div></div>
+                    <div class="param-box"><div class="label" style="border:none;">STALL_T</div><div class="content">600ms</div></div>
+                </div>
+                
+                <button class="btn-exit" id="exit-btn" onclick="terminateSession()">DISCONNECT_LINK</button>
+            </div>
+
+            <div style="border-left: 2px solid #333; padding-left: 20px;">
+                <h3 style="color:var(--cb-yellow); font-size: 14px; margin-bottom: 10px;">
+                    SYSTEM_STATUS: <span style="color:var(--cb-red)">RESTRICTED</span>
+                </h3>
+                <div style="font-size: 10px; color: #888; margin-bottom: 20px;">
+                    ACCESS_LEVEL: 04 // CLEARANCE_REQUIRED
+                </div>
+
+                <h3 style="color:var(--cb-yellow); font-size: 16px; margin-bottom: 20px;">[MILITECH_TACTICAL_DATA]</h3>
+                
+                <p style="font-size:12px; color:var(--cb-blue);">电流负荷 [0.7A_MAX]</p>
+                <div class="hud-meter"><div class="hud-fill" style="width:60%;"></div></div>
+                
+                <p style="font-size:12px; color:var(--cb-blue); margin-top: 20px;">控制精度 (Err < 1.5%)</p>
+                <div class="hud-meter"><div class="hud-fill" style="width:98%; background:var(--cb-blue);"></div></div>
+
+                <div id="log-stream" style="background: #080808; padding: 10px; font-size: 9px; color: #00ff41; height: 160px; overflow: hidden; border: 1px solid #222; margin-top: 20px; font-family: 'Courier New', monospace;">
+                    > INITIALIZING_TERMINAL...<br>
+                </div>
+
+                <div style="font-size: 12px; color: #777; margin-top: 30px;">
+                    STATUS: SECURE_PROTOCOL<br>
+                    HARDWARE_REV: 3.1_WEACT<br>
+                    LOC_COORDS: 19.42, 87.01 // NIGHT_CITY_SECTOR_H4<br>
+                    TIMESTAMP: 2026.06.08
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.onload = () => {
+            const bar = document.getElementById('loading-bar');
+            const pct = document.getElementById('loading-pct');
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.floor(Math.random() * 20) + 5;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                }
+                bar.style.width = progress + '%';
+                pct.textContent = progress + '%';
+                if (progress >= 100) {
+                    setTimeout(() => {
+                        document.getElementById('loading-screen').style.display = 'none';
+                    }, 200);
+                }
+            }, 80);
+        };
+
+        const logStream = document.getElementById('log-stream');
+        const logs = [
+            "ACCESSING_CORE_KERNEL...",
+            "BYPASSING_ICE_SECURITY...",
+            "INJECTING_PAYLOAD: 0x4F4B...",
+            "OVERRIDE_PWM_FREQUENCY...",
+            "STALL_DETECT_DISABLED",
+            "ERROR: MEM_ADDRESS_CORRUPTED",
+            "GRANTING_ROOT_ACCESS_LEVEL",
+            "RUNNING_MALWARE_SEQUENCE...",
+            "SYSTEM_UNSTABLE_REBOOTING",
+            ">> ACCESS_GRANTED <<",
+            "PID_LOOP_FEEDBACK: 0.003",
+            "WARNING: NCPD_TRACKING_YOU"
+        ];
+
+        function addGlitchLog() {
+            const randomLog = logs[Math.floor(Math.random() * logs.length)];
+            const newLog = document.createElement('div');
+            newLog.innerHTML = '> ' + randomLog;
+            logStream.appendChild(newLog);
+            logStream.scrollTop = logStream.scrollHeight;
+            if (logStream.children.length > 15) {
+                logStream.removeChild(logStream.firstChild);
+            }
+        }
+
+        setInterval(addGlitchLog, 800);
+
+        function terminateSession() {
+            const btn = document.getElementById('exit-btn');
+            const modal = document.getElementById('purge-modal');
+            const purgeLog = document.getElementById('purge-log');
+            const purgeBar = document.getElementById('purge-bar');
+            const panel = document.getElementById('main-panel');
+
+            modal.style.display = 'flex';
+            modal.style.animation = 'none';
+            modal.offsetHeight;
+            modal.style.animation = 'cyber-proj 0.4s cubic-bezier(0, 0.8, 0.2, 1) forwards';
+            btn.innerText = "PURGING...";
+
+            const sequence = [
+                "Tracing source...",
+                "Bypassing NCPD firewall...",
+                "Cleaning access logs...",
+                "Deleting temporary files...",
+                "Covering tracks...",
+                "Connection severed."
+            ];
+
+            let i = 0;
+            const interval = setInterval(() => {
+                if (i < sequence.length) {
+                    purgeLog.innerHTML = '> ' + sequence[i];
+                    purgeBar.style.width = (i + 1) * 16.6 + "%";
+                    i++;
+                } else {
+                    clearInterval(interval);
+                    panel.classList.add('fade-out-effect');
+                    setTimeout(() => { history.back(); }, 800);
+                }
+            }, 400);
+        }
+    </script>
+</body>
+</html>

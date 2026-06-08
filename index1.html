@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SYSTEM BOOT // V_TERMINAL</title>
+    <style>
+        :root {
+            --cb-yellow: #fcee0a;
+            --cb-blue: #00f0ff;
+            --cb-red: #ff0055;
+            --cb-bg: #000000; 
+            --font-cyber: 'Courier New', Courier, monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--cb-bg);
+            color: #00f0ff;
+            font-family: var(--font-cyber);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* --- 温和的暗场过渡遮罩 --- */
+        #transition-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #000000; 
+            z-index: 10000; 
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.6s ease-in-out; 
+        }
+
+        .fade-active {
+            opacity: 1 !important;
+        }
+
+        /* --- 极简加载屏 --- */
+        #boot-loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: var(--cb-bg);
+            z-index: 9999; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.6s ease-out, visibility 0.6s ease-out;
+        }
+
+        .loader-bar-container {
+            width: 85vw; 
+            max-width: 1200px;
+            height: 12px;
+            border: 1px solid var(--cb-yellow);
+            position: relative;
+            background: transparent;
+            clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%);
+        }
+
+        .loader-bar {
+            width: 0%;
+            height: 100%;
+            background-color: var(--cb-yellow);
+            transition: width 0.1s linear;
+        }
+
+        .loader-text {
+            color: var(--cb-yellow);
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 20px;
+            letter-spacing: 2px;
+        }
+
+        @keyframes text-blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        /* --- 动态模糊城市背景图 --- */
+        .city-bg {
+            position: fixed;
+            top: -5%; 
+            left: -5%;
+            width: 110vw; 
+            height: 110vh;
+            /* 👇 记得换上你的 PICUI 背景图链接 👇 */
+            background-image: url('请在这里粘贴你的PICUI背景图直接链接'); 
+            background-size: cover;
+            background-position: center;
+            filter: blur(8px) brightness(0.3); 
+            z-index: 1; 
+        }
+
+        /* --- 扫描线遮罩效果 --- */
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-image: repeating-linear-gradient(
+                0deg,
+                rgba(0, 240, 255, 0.03) 0px,
+                rgba(0, 240, 255, 0.03) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            z-index: 3; 
+            pointer-events: none;
+        }
+
+        /* --- 顶部左侧的终端启动代码 --- */
+        .terminal-output {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 14px;
+            color: #00ff41; 
+            text-align: left;
+            line-height: 1.5;
+            opacity: 0.8;
+            pointer-events: none;
+            z-index: 10; 
+        }
+
+        /* --- 中央视觉区 --- */
+        .hero-container {
+            text-align: center;
+            position: relative;
+            z-index: 10; 
+        }
+
+        /* --- 故障风标题特效 (已恢复) --- */
+        .glitch-title {
+            font-size: 80px;
+            font-weight: 900;
+            color: var(--cb-yellow);
+            text-transform: uppercase;
+            position: relative;
+            display: inline-block;
+            margin-bottom: 40px;
+            letter-spacing: -2px;
+            text-shadow: 2px 0 var(--cb-red), -2px 0 var(--cb-blue);
+        }
+
+        .glitch-title::before, .glitch-title::after {
+            content: attr(data-text);
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+        }
+
+        .glitch-title::before {
+            left: 2px;
+            text-shadow: -2px 0 var(--cb-red);
+            clip-path: polygon(0 20%, 100% 20%, 100% 30%, 0 30%);
+            animation: glitch-anim 2.5s infinite linear alternate-reverse;
+        }
+
+        .glitch-title::after {
+            left: -2px;
+            text-shadow: -2px 0 var(--cb-blue);
+            clip-path: polygon(0 60%, 100% 60%, 100% 70%, 0 70%);
+            animation: glitch-anim 3s infinite linear alternate-reverse;
+        }
+
+        @keyframes glitch-anim {
+            0% { clip-path: inset(10% 0 80% 0); }
+            20% { clip-path: inset(80% 0 5% 0); }
+            40% { clip-path: inset(20% 0 50% 0); }
+            60% { clip-path: inset(50% 0 30% 0); }
+            80% { clip-path: inset(5% 0 80% 0); }
+            100% { clip-path: inset(30% 0 40% 0); }
+        }
+
+        .subtitle {
+            color: #fff;
+            font-size: 18px;
+            margin-bottom: 60px;
+            letter-spacing: 5px;
+            opacity: 0;
+            text-shadow: 0 0 5px rgba(0,0,0,0.8); 
+            animation: fadeIn 1s forwards 2.5s; 
+        }
+
+        /* --- 接入按钮 --- */
+        .enter-btn {
+            display: inline-block;
+            background-color: var(--cb-yellow);
+            color: #000;
+            font-size: 20px;
+            font-weight: bold;
+            padding: 15px 50px;
+            text-decoration: none;
+            text-transform: uppercase;
+            position: relative;
+            clip-path: polygon(0 0, 90% 0, 100% 30%, 100% 100%, 10% 100%, 0 70%);
+            transition: all 0.3s;
+            opacity: 0;
+            animation: fadeIn 1s forwards 3.5s; 
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+
+        .enter-btn:hover {
+            background-color: transparent;
+            color: var(--cb-yellow);
+            border-color: var(--cb-yellow);
+            box-shadow: 0 0 20px rgba(252, 238, 10, 0.4);
+            transform: scale(1.05);
+        }
+
+        .enter-btn::after {
+            content: '_';
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="transition-overlay"></div>
+
+    <div id="boot-loader">
+        <div class="loader-bar-container">
+            <div class="loader-bar" id="loader-bar"></div>
+        </div>
+        <div class="loader-text" id="loader-text">读取</div>
+    </div>
+
+    <div class="city-bg"></div>
+    <div class="scanlines"></div>
+    <div class="terminal-output" id="terminal"></div>
+
+    <div class="hero-container">
+        <div class="glitch-title" data-text="NIGHT CITY LOG">NIGHT CITY LOG</div>
+        
+        <div class="subtitle">未经授权的访问将被暴恐机动队追踪</div>
+        
+        <a href="blog.html" class="enter-btn" id="jack-in-btn">神经接入 // ENTER</a>
+    </div>
+
+    <script>
+        // =========================================
+        // 0. 温和的暗场跳转逻辑
+        // =========================================
+        const jackInBtn = document.getElementById('jack-in-btn');
+        const transitionOverlay = document.getElementById('transition-overlay');
+
+        jackInBtn.addEventListener('click', function(e) {
+            e.preventDefault(); 
+            const targetUrl = this.getAttribute('href');
+
+            this.innerText = "JACKING IN... //";
+            this.style.backgroundColor = "transparent";
+            this.style.color = "var(--cb-blue)";
+            this.style.borderColor = "var(--cb-blue)";
+            this.style.boxShadow = "0 0 20px rgba(0, 240, 255, 0.3)";
+
+            setTimeout(() => {
+                transitionOverlay.classList.add('fade-active');
+            }, 100);
+
+            setTimeout(() => {
+                window.location.href = targetUrl;
+            }, 700);
+        });
+
+        // =========================================
+        // 1. 极简加载动画逻辑
+        // =========================================
+        const loader = document.getElementById('boot-loader');
+        const loaderBar = document.getElementById('loader-bar');
+        const loaderText = document.getElementById('loader-text');
+
+        let progress = 0;
+        
+        let loadInterval = setInterval(() => {
+            let jump = Math.floor(Math.random() * 15) + 1;
+            progress += jump;
+
+            if (progress >= 100) {
+                progress = 100;
+            }
+
+            loaderBar.style.width = progress + '%';
+
+            if (progress === 100) {
+                clearInterval(loadInterval);
+                loaderText.innerText = "按[空格键]继续"; 
+                loaderText.style.animation = "text-blink 1s infinite";
+                
+                setTimeout(() => {
+                    loader.style.opacity = '0';
+                    loader.style.visibility = 'hidden';
+                    setTimeout(typeWriter, 500); 
+                }, 1200);
+            }
+        }, 150); 
+
+        // =========================================
+        // 2. 终端打字效果
+        // =========================================
+        const bootSequence = [
+            "BIOS Version 2.0.77",
+            "Initializing Subnet Protocol...",
+            "Loading Modules...... [OK]",
+            "Firewall bypassed...... [WARNING]",
+            "Connection established.",
+            "Welcome back, V."
+        ];
+
+        let termLine = 0;
+        let charIndex = 0;
+        const terminalElement = document.getElementById("terminal");
+
+        function typeWriter() {
+            if (termLine < bootSequence.length) {
+                if (charIndex < bootSequence[termLine].length) {
+                    terminalElement.innerHTML += bootSequence[termLine].charAt(charIndex);
+                    charIndex++;
+                    setTimeout(typeWriter, 30); 
+                } else {
+                    terminalElement.innerHTML += "<br>";
+                    termLine++;
+                    charIndex = 0;
+                    setTimeout(typeWriter, 300); 
+                }
+            }
+        }
+    </script>
+</body>
+</html>
