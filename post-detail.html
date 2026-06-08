@@ -322,8 +322,15 @@
                     i++;
                 } else {
                     clearInterval(interval);
+                    modal.classList.add('fade-out-effect');
                     panel.classList.add('fade-out-effect');
-                    setTimeout(() => { history.back(); }, 800);
+                    setTimeout(() => {
+                        if (document.referrer && document.referrer.includes('blog.html')) {
+                            history.back();
+                        } else {
+                            window.location.href = 'blog.html';
+                        }
+                    }, 800);
                 }
             }, 400);
         }
