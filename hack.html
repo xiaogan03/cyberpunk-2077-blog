@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>BREACH_PROTOCOL // V_TERMINAL</title>
+    <style>
+        :root {
+            --cb-yellow: #fcee0a;
+            --cb-blue: #00f0ff;
+            --cb-red: #ff0055;
+            --cb-bg: #000000;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: var(--cb-bg);
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .scanlines {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-image: repeating-linear-gradient(
+                0deg,
+                rgba(0, 240, 255, 0.03) 0px,
+                rgba(0, 240, 255, 0.03) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none; z-index: 10;
+        }
+
+        /* ── 背景噪声代码层 ── */
+        .noise-data-layer {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 0;
+            pointer-events: none;
+            color: #2a2a2a;
+            font-size: 8px;
+            line-height: 1.5;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 10px;
+            filter: blur(0.6px);
+            opacity: 0.5;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        @keyframes cyber-proj {
+            0% { transform: scale(0.95); opacity: 0; filter: blur(10px) brightness(1.5); }
+            100% { transform: scale(1); opacity: 1; filter: blur(0px) brightness(1); }
+        }
+
+        @keyframes border-pulse {
+            0% { border-color: var(--cb-blue); box-shadow: 0 0 5px var(--cb-blue); }
+            50% { border-color: #fff; box-shadow: 0 0 15px #fff; }
+            100% { border-color: var(--cb-blue); box-shadow: 0 0 5px var(--cb-blue); }
+        }
+
+        @keyframes jitter-shape {
+            0% { clip-path: polygon(0 0, 90% 0, 100% 15%, 100% 100%, 10% 100%, 0 85%); }
+            15% { clip-path: polygon(0 2px, 92% 0, 100% 13%, 98% 100%, 12% 100%, 2px 87%); }
+            30% { clip-path: polygon(0 0, 90% 0, 100% 15%, 100% 100%, 10% 100%, 0 85%); }
+            100% { clip-path: polygon(0 0, 90% 0, 100% 15%, 100% 100%, 10% 100%, 0 85%); }
+        }
+
+        @keyframes cell-select {
+            0% { transform: scale(1); box-shadow: 0 0 5px var(--cb-yellow); }
+            50% { transform: scale(1.1); box-shadow: 0 0 20px var(--cb-yellow); }
+            100% { transform: scale(1); box-shadow: 0 0 0 var(--cb-yellow); }
+        }
+
+        @keyframes mismatch-flash {
+            0% { border-color: var(--cb-red); box-shadow: 0 0 5px var(--cb-red); }
+            50% { border-color: #ff4d7a; box-shadow: 0 0 20px rgba(255, 0, 85, 0.6); }
+            100% { border-color: var(--cb-red); box-shadow: 0 0 5px var(--cb-red); }
+        }
+
+        @keyframes success-text-glow {
+            0% { text-shadow: 0 0 5px var(--cb-blue); }
+            50% { text-shadow: 0 0 25px var(--cb-blue), 0 0 50px var(--cb-blue); }
+            100% { text-shadow: 0 0 5px var(--cb-blue); }
+        }
+
+        @keyframes slot-pulse {
+            0% { border-color: var(--cb-yellow); box-shadow: 0 0 6px rgba(252, 238, 10, 0.2); }
+            50% { border-color: #fff; box-shadow: 0 0 14px rgba(252, 238, 10, 0.5); }
+            100% { border-color: var(--cb-yellow); box-shadow: 0 0 6px rgba(252, 238, 10, 0.2); }
+        }
+
+        /* ── 主容器 ── */
+        .hacking-terminal {
+            display: grid;
+            grid-template-columns: 550px 254px;
+            gap: 30px;
+            width: 900px;
+            margin: 50px auto;
+            background: #080808;
+            border: 3px solid var(--cb-yellow);
+            padding: 25px 30px 30px;
+            position: relative;
+            z-index: 1;
+            box-shadow:
+                inset 0 0 60px rgba(0,0,0,0.5),
+                0 0 2px rgba(252,238,10,0.15);
+        }
+
+        .hacking-terminal::before {
+            content: '';
+            position: absolute; top: -1px; left: 20px; right: 20px;
+            height: 1px;
+            background: rgba(252, 238, 10, 0.3);
+        }
+        .hacking-terminal::after {
+            content: '';
+            position: absolute; bottom: -1px; left: 20px; right: 20px;
+            height: 1px;
+            background: rgba(252, 238, 10, 0.3);
+        }
+
+        /* ── 左区域：矩阵 + 缓冲区 ── */
+        .matrix-zone {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            overflow: hidden;
+            min-width: 0;
+        }
+
+        .zone-title {
+            color: var(--cb-yellow);
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 4px;
+        }
+
+        .matrix-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            border: 1px solid #222;
+            padding: 4px;
+            background: #040404;
+        }
+
+        .matrix-cell {
+            padding: 24px 18px;
+            text-align: center;
+            border: 1px solid #222;
+            color: var(--cb-blue);
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            background: #0a0a0a;
+            transition: all 0.12s ease;
+            user-select: none;
+            position: relative;
+        }
+
+        .matrix-cell::after {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, rgba(252,238,10,0.04) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .matrix-cell:hover {
+            border-color: var(--cb-yellow);
+            color: var(--cb-yellow);
+            box-shadow: 0 0 12px rgba(252, 238, 10, 0.3), inset 0 0 8px rgba(252, 238, 10, 0.08);
+        }
+
+        .matrix-cell.selected {
+            background: var(--cb-yellow);
+            color: #000;
+            border-color: var(--cb-yellow);
+            box-shadow: 0 0 15px rgba(252, 238, 10, 0.4);
+            animation: cell-select 0.3s ease;
+            cursor: default;
+            pointer-events: none;
+        }
+
+        .matrix-cell.selected::after { display: none; }
+
+        /* ── 缓冲区 ── */
+        .buffer-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border: 2px solid #2a2a2a;
+            border-top-color: #444;
+            background: #020202;
+            position: relative;
+        }
+        .buffer-section::before {
+            content: 'INPUT_BUFFER';
+            position: absolute; top: -7px; left: 12px;
+            font-size: 7px; color: #555; background: #020202; padding: 0 4px;
+            letter-spacing: 0.5px;
+        }
+
+        .buffer-label {
+            color: var(--cb-blue);
+            font-size: 10px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .buffer-slots {
+            display: flex;
+            gap: 5px;
+            flex: 1;
+        }
+
+        .buffer-slot {
+            width: 44px;
+            height: 44px;
+            border: 1px solid #555;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            font-family: 'Courier New', Courier, monospace;
+            transition: all 0.12s ease;
+        }
+
+        .buffer-slot.filled {
+            color: var(--cb-yellow);
+            border-color: var(--cb-yellow);
+            box-shadow: 0 0 8px rgba(252, 238, 10, 0.25);
+            background: #0a0a00;
+            animation: slot-pulse 1s infinite;
+        }
+
+        .attempts-display {
+            font-size: 12px;
+            color: var(--cb-blue);
+            text-align: right;
+        }
+
+        .attempts-display .count {
+            color: var(--cb-yellow);
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        /* ── 按钮区 ── */
+        .action-row {
+            display: flex;
+            gap: 15px;
+        }
+
+        .btn-reset {
+            background: transparent;
+            color: var(--cb-red);
+            border: 1px solid var(--cb-red);
+            padding: 10px 20px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            clip-path: polygon(0 0, 85% 0, 100% 50%, 100% 100%, 15% 100%, 0 50%);
+            transition: all 0.2s;
+        }
+
+        .btn-reset:hover {
+            background: var(--cb-red);
+            color: #000;
+        }
+
+        /* ── 右区域：HUD ── */
+        .hud-zone {
+            border-left: 1px solid #333;
+            padding-left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            overflow: hidden;
+            min-width: 0;
+        }
+
+
+        .target-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .target-item {
+            display: grid;
+            grid-template-columns: 36px 1fr 24px;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .target-label {
+            font-size: 9px;
+            color: #666;
+        }
+
+        .target-code {
+            display: flex;
+            gap: 2px;
+        }
+
+        .target-code span {
+            display: inline-block;
+            width: 28px;
+            padding: 3px 0;
+            text-align: center;
+            border: 1px solid #333;
+            font-size: 12px;
+            color: var(--cb-blue);
+            font-weight: bold;
+            background: #050505;
+        }
+
+        .target-match {
+            font-size: 9px;
+            color: #555;
+            text-align: right;
+        }
+
+        .target-match.done {
+            color: var(--cb-yellow);
+        }
+
+        .feedback-text {
+            font-size: 11px;
+            color: var(--cb-red);
+            min-height: 16px;
+            font-weight: bold;
+        }
+
+        .status-panel {
+            border: 1px solid #333;
+            padding: 12px;
+            font-size: 11px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            background: #030303;
+        }
+
+        .status-panel .row {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .status-panel .key { color: #888; }
+        .status-panel .val { color: var(--cb-blue); }
+        .status-panel .val.warn { color: var(--cb-red); }
+
+        /* ── 装饰性微标签 ── */
+        .micro-label {
+            font-size: 8px;
+            color: #555;
+            letter-spacing: 0.5px;
+        }
+        .micro-label .hl { color: var(--cb-yellow); }
+
+        /* ── 微型数据流 ── */
+        .data-stream {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px 8px;
+            font-size: 7px;
+            color: #444;
+            letter-spacing: 0.3px;
+            line-height: 1.3;
+        }
+        .data-stream .hl { color: var(--cb-yellow); }
+        .data-stream .bl { color: var(--cb-blue); }
+        .data-stream .dim { color: #333; }
+
+        /* ── 动态代码流窗口 ── */
+        .data-stream-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            background: #020202;
+            padding: 8px 10px;
+            border: 1px solid #1a1a1a;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 8px;
+            height: 120px;
+            overflow: hidden;
+        }
+
+        .stream-row {
+            display: grid;
+            grid-template-columns: 70px 55px 1fr;
+            color: #444;
+            line-height: 1.5;
+        }
+
+        .stream-row .addr { color: #555; }
+        .stream-row .opcode { color: var(--cb-blue); font-weight: bold; }
+        .stream-row .desc { color: #888; }
+
+        .btn-return {
+            background: transparent;
+            color: #555;
+            border: 1px solid #444;
+            padding: 6px 12px;
+            font-size: 10px;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            transition: all 0.2s;
+            margin-top: auto;
+            text-align: center;
+        }
+
+        .btn-return:hover {
+            color: var(--cb-blue);
+            border-color: var(--cb-blue);
+        }
+
+        /* ── 成功弹窗 ── */
+        .success-overlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 40, 30, 0.85);
+            display: none;
+            justify-content: center; align-items: center;
+            z-index: 9999;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        .success-window {
+            clip-path: polygon(0 0, 90% 0, 100% 15%, 100% 100%, 10% 100%, 0 85%);
+            background: #000;
+            border: 2px solid var(--cb-blue);
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.3);
+            padding: 50px 60px;
+            text-align: center;
+            animation: cyber-proj 0.5s cubic-bezier(0, 0.8, 0.2, 1) forwards;
+        }
+
+        .success-title {
+            color: var(--cb-blue);
+            font-size: 36px;
+            font-weight: bold;
+            letter-spacing: 4px;
+            animation: success-text-glow 2s infinite;
+            margin-bottom: 10px;
+        }
+
+        .success-subtitle {
+            color: #fff;
+            font-size: 14px;
+            letter-spacing: 2px;
+            margin-bottom: 30px;
+        }
+
+        .btn-back {
+            background: transparent;
+            color: var(--cb-blue);
+            border: 1px solid var(--cb-blue);
+            padding: 10px 30px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            clip-path: polygon(0 0, 85% 0, 100% 50%, 100% 100%, 15% 100%, 0 50%);
+            transition: all 0.2s;
+            letter-spacing: 1px;
+        }
+
+        .btn-back:hover {
+            background: var(--cb-blue);
+            color: #000;
+        }
+
+        /* ── 角标 ── */
+        .corner-marker {
+            position: absolute; width: 16px; height: 16px;
+            border: 3px solid var(--cb-yellow);
+        }
+    </style>
+</head>
+<body>
+    <div class="scanlines"></div>
+    <div class="noise-data-layer">
+        <div class="code-row">0x7F3E0 // 55 48 89 E5 48 83 EC 20</div>
+        <div class="code-row" style="margin-left: 30px;">0x7F3F8 // FF 1C 55 BD E9 7A 3E 88</div>
+        <div class="code-row">0x8A2C1 // 4F A2 66 D4 91 CE 37 0B</div>
+        <div class="code-row" style="margin-left: 60px;">0x9B1D2 // 1C 55 BD E9 7A 3E 88 4F</div>
+        <div class="code-row">0xAC3E3 // A2 66 D4 91 CE 37 0B 55</div>
+        <div class="code-row" style="margin-left: 15px;">0xBD4F4 // FF 1C 55 BD E9 7A 3E 88</div>
+        <div class="code-row">0xCE505 // 4F A2 66 D4 91 CE 37 0B</div>
+        <div class="code-row" style="margin-left: 45px;">0xDF616 // 1C 55 BD E9 7A 3E 88 4F</div>
+        <div class="code-row">0xE0727 // A2 66 D4 91 CE 37 0B 55</div>
+        <div class="code-row" style="margin-left: 80px;">0xF1838 // FF 1C 55 BD E9 7A 3E 88</div>
+    </div>
+
+    <!-- 成功弹窗 -->
+    <div id="success-modal" class="success-overlay">
+        <div class="success-window">
+            <div class="success-title">BREACH_SUCCESSFUL</div>
+            <div class="success-subtitle">ACCESS_GRANTED // DATA_DECRYPTED</div>
+            <button class="btn-back" onclick="window.location.href='blog.html'">ACCESS_PROJECT_DOCS // 访问工程文档</button>
+        </div>
+    </div>
+
+    <!-- 主终端 -->
+    <div class="hacking-terminal" id="main-terminal">
+        <div class="corner-marker" style="top:-5px; left:-5px; border-right:none; border-bottom:none;"></div>
+        <div class="corner-marker" style="top:-5px; right:-5px; border-left:none; border-bottom:none;"></div>
+        <div class="corner-marker" style="bottom:-5px; left:-5px; border-right:none; border-top:none;"></div>
+        <div class="corner-marker" style="bottom:-5px; right:-5px; border-left:none; border-top:none;"></div>
+
+        <!-- 左侧：矩阵 + 缓冲区 -->
+        <div class="matrix-zone">
+            <div style="display: flex; justify-content: space-between; font-size: 7px; color: #444; letter-spacing: 0.3px;">
+                <span><span class="hl">0x401000:</span> 55 48 89 E5 48 83 EC 20</span>
+                <span style="color: var(--cb-blue);">SYS::SECURE</span>
+                <span><span class="hl">0x40100F:</span> 48 85 C0 <span style="color: var(--cb-yellow);">74 0A</span></span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 0 4px;">
+                <span style="font-size: 7px; color: #444; text-align: center;">01</span>
+                <span style="font-size: 7px; color: #444; text-align: center;">02</span>
+                <span style="font-size: 7px; color: #444; text-align: center;">03</span>
+                <span style="font-size: 7px; color: #444; text-align: center;">04</span>
+            </div>
+            <div class="matrix-container" id="matrix"></div>
+
+            <div style="display: flex; justify-content: space-between; font-size: 8px; color: #555;">
+                <span>ROW_SELECT: <span style="color: var(--cb-yellow);">ACTIVE</span></span>
+                <span>SEQ_LENGTH: 05</span>
+                <span>ICE: <span style="color: var(--cb-blue);">CLASS_A</span></span>
+            </div>
+
+            <div class="buffer-section">
+                <div class="buffer-label">BUFFER //</div>
+                <div class="buffer-slots" id="buffer-slots">
+                    <div class="buffer-slot"></div>
+                    <div class="buffer-slot"></div>
+                    <div class="buffer-slot"></div>
+                    <div class="buffer-slot"></div>
+                    <div class="buffer-slot"></div>
+                </div>
+            </div>
+
+            <div class="action-row">
+                <button class="btn-reset" id="reset-btn">[R] 重置</button>
+                <div class="feedback-text" id="feedback"></div>
+                <div class="attempts-display" style="margin-left: auto;">
+                    REMAINING: <span class="count" id="attempts-count">3</span>
+                </div>
+            </div>
+            <div class="data-stream">
+                <span>0xA3C0: <span class="bl">push</span> <span class="dim">rbp</span></span>
+                <span class="dim">|</span>
+                <span class="hl">mov</span> <span class="dim">rbp,rsp</span>
+                <span class="dim">|</span>
+                <span class="hl">xor</span> <span class="dim">eax,eax</span>
+                <span class="dim">|</span>
+                <span class="bl">call</span> <span class="dim">0x4F_A2D4</span>
+                <span class="dim">|</span>
+                <span class="hl">ret</span>
+            </div>
+        </div>
+
+        <!-- 右侧：HUD -->
+        <div class="hud-zone">
+            <div class="zone-title" style="font-size: 10px; margin-bottom: 0;">[TARGET_SEQUENCES]</div>
+            <div class="data-stream">
+                <span>0x7F30:</span>
+                <span class="bl">cmp</span> <span class="dim">eax, 0x04</span>
+                <span class="dim">|</span>
+                <span class="hl">jne</span> <span class="dim">0x7F3A</span>
+                <span class="dim">|</span>
+                <span class="bl">lea</span> <span class="dim">rdi, [rbp-0x10]</span>
+            </div>
+
+            <div class="target-list" id="target-list">
+                <div class="target-item">
+                    <span class="target-label">DAT1</span>
+                    <div class="target-code" id="target-0"><span></span><span></span><span></span><span></span><span></span></div>
+                    <span class="target-match" id="match-0">[ ]</span>
+                </div>
+                <div class="target-item">
+                    <span class="target-label">DAT2</span>
+                    <div class="target-code" id="target-1"><span></span><span></span><span></span><span></span><span></span></div>
+                    <span class="target-match" id="match-1">[ ]</span>
+                </div>
+                <div class="target-item">
+                    <span class="target-label">DAT3</span>
+                    <div class="target-code" id="target-2"><span></span><span></span><span></span><span></span><span></span></div>
+                    <span class="target-match" id="match-2">[ ]</span>
+                </div>
+            </div>
+
+            <div class="status-panel">
+                <div class="row"><span class="key">SYS</span><span class="val warn">BREACH_IN_PROGRESS</span></div>
+                <div class="row"><span class="key">DECK</span><span class="val">V_PROTO_v2.0</span></div>
+                <div class="row"><span class="key">USR</span><span class="val">V // NETRUNNER</span></div>
+                <div class="row"><span class="key">ICE</span><span class="val">CLASS_A [MILITECH]</span></div>
+                <div class="row" style="border-top: 1px solid #222; padding-top: 4px; margin-top: 2px;"><span class="key">MEM</span><span class="val" style="color: var(--cb-yellow);">0x0F_A3C0</span></div>
+            </div>
+
+            <div id="dynamic-data-container" class="data-stream-container" style="height: 90px;"></div>
+
+            <div class="data-stream" style="justify-content: flex-end; margin-top: 4px;">
+                <span>0x7F3E0:</span>
+                <span class="hl">1C</span> <span class="dim">55</span> BD E9 7A</span>
+                <span class="dim">→</span>
+                <span>0x7F3E5:</span>
+                <span class="bl">FF</span> <span class="dim">1C</span> 55 BD E9</span>
+            </div>
+            <div class="micro-label" style="text-align: right;">REV: 2.0.77_ALPHA <span class="hl">//</span> NIGHT_CITY</div>
+            <button class="btn-return" onclick="window.location.href='blog.html'">DISCONNECT // 断开连接</button>
+        </div>
+    </div>
+
+    <script>
+        // Web Audio API — 终端按键音效
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playClick() {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.06);
+            gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.06);
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.06);
+        }
+
+        const MATRIX_ROWS = 4;
+        const MATRIX_COLS = 4;
+        const BUFFER_SIZE = 5;
+
+        const matrixData = [
+            ['1C', '55', 'BD', 'E9'],
+            ['FF', '7A', '3E', '88'],
+            ['4F', 'A2', '66', 'D4'],
+            ['91', 'CE', '37', '0B']
+        ];
+
+        const targets = [
+            ['1C', '55', 'BD', 'E9', '7A'],
+            ['FF', '1C', '55', 'BD', 'E9'],
+            ['E9', '7A', 'FF', '55', '1C']
+        ];
+
+        let buffer = [];
+        let attempts = 3;
+        let lockUI = false;
+
+        function buildMatrix() {
+            const container = document.getElementById('matrix');
+            container.innerHTML = '';
+            for (let r = 0; r < MATRIX_ROWS; r++) {
+                for (let c = 0; c < MATRIX_COLS; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'matrix-cell';
+                    cell.textContent = matrixData[r][c];
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+                    cell.addEventListener('click', () => onCellClick(cell, r, c));
+                    container.appendChild(cell);
+                }
+            }
+        }
+
+        function buildTargets() {
+            targets.forEach((seq, i) => {
+                const container = document.getElementById('target-' + i);
+                container.querySelectorAll('span').forEach((span, j) => {
+                    span.textContent = seq[j];
+                });
+            });
+        }
+
+        function onCellClick(cell, r, c) {
+            if (lockUI) return;
+            if (cell.classList.contains('selected')) return;
+            if (buffer.length >= BUFFER_SIZE) return;
+
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            playClick();
+
+            cell.classList.add('selected');
+            buffer.push({ row: r, col: c, value: matrixData[r][c] });
+            updateBufferSlots();
+
+            if (buffer.length === BUFFER_SIZE) {
+                checkMatch();
+            }
+        }
+
+        function updateBufferSlots() {
+            const slots = document.getElementById('buffer-slots').children;
+            for (let i = 0; i < slots.length; i++) {
+                if (i < buffer.length) {
+                    slots[i].textContent = buffer[i].value;
+                    slots[i].classList.add('filled');
+                } else {
+                    slots[i].textContent = '';
+                    slots[i].classList.remove('filled');
+                }
+            }
+        }
+
+        function checkMatch() {
+            const userSequence = buffer.map(b => b.value);
+            const feedback = document.getElementById('feedback');
+            let matched = false;
+            let matchedIdx = -1;
+
+            for (let i = 0; i < targets.length; i++) {
+                const t = targets[i];
+                const isMatch = t.every((code, idx) => code === userSequence[idx]);
+                if (isMatch) {
+                    matched = true;
+                    matchedIdx = i;
+                    break;
+                }
+            }
+
+            if (matched) {
+                document.getElementById('match-' + matchedIdx).textContent = '[BREACHED]';
+                document.getElementById('match-' + matchedIdx).classList.add('done');
+                feedback.textContent = '';
+                lockUI = true;
+                setTimeout(showSuccess, 400);
+            } else {
+                attempts--;
+                document.getElementById('attempts-count').textContent = attempts;
+                feedback.textContent = '[X] SEQUENCE MISMATCH // 序列不匹配';
+
+                if (attempts <= 0) {
+                    lockUI = true;
+                    feedback.textContent = '[!] ALL ATTEMPTS EXHAUSTED // 强制断开';
+                    document.getElementById('main-terminal').style.animation = 'mismatch-flash 0.5s ease 3';
+                    setTimeout(() => { window.location.href = 'blog.html'; }, 2000);
+                } else {
+                    setTimeout(resetBuffer, 600);
+                }
+            }
+        }
+
+        function showSuccess() {
+            const overlay = document.getElementById('success-modal');
+            overlay.style.display = 'flex';
+        }
+
+        function resetBuffer() {
+            buffer = [];
+            updateBufferSlots();
+            document.querySelectorAll('.matrix-cell.selected').forEach(c => {
+                c.classList.remove('selected');
+            });
+            document.getElementById('feedback').textContent = '';
+        }
+
+        function fullReset() {
+            if (lockUI) return;
+            buffer = [];
+            updateBufferSlots();
+            document.querySelectorAll('.matrix-cell.selected').forEach(c => {
+                c.classList.remove('selected');
+            });
+            document.getElementById('feedback').textContent = '';
+            attempts = 3;
+            document.getElementById('attempts-count').textContent = attempts;
+            document.querySelectorAll('.target-match').forEach(m => {
+                m.textContent = '[ ]';
+                m.classList.remove('done');
+            });
+        }
+
+        document.getElementById('reset-btn').addEventListener('click', fullReset);
+
+        // bfcache 恢复
+        window.addEventListener('pageshow', (event) => {
+            if (event.persisted) {
+                const overlay = document.getElementById('success-modal');
+                if (overlay.style.display === 'flex') {
+                    overlay.style.display = 'none';
+                }
+                lockUI = false;
+                fullReset();
+            }
+        });
+
+        // ── 动态代码流 ──
+        const dynContainer = document.getElementById('dynamic-data-container');
+        const ops = ['MOV', 'PUSH', 'CMP', 'JNZ', 'XOR', 'CALL', 'LEA', 'RET', 'ADD', 'SUB'];
+        const descs = ['VAL_PROC_REQ', 'STACK_OP', 'DATA_CHECK', 'BRANCH', 'MEM_FETCH', 'ICE_BYPASS', 'REG_INIT', 'PRECHECK', 'CORE_ACCESS', 'SYS_CALL'];
+
+        function addDataRow() {
+            const addr = '0x' + Math.floor(Math.random() * 0xFFFF).toString(16).toUpperCase().padStart(5, '0');
+            const op = ops[Math.floor(Math.random() * ops.length)];
+            const val = Math.floor(Math.random() * 256).toString(16).toUpperCase().padStart(2, '0');
+            const desc = descs[Math.floor(Math.random() * descs.length)];
+
+            const row = document.createElement('div');
+            row.className = 'stream-row';
+            row.innerHTML = `<span class="addr">${addr}</span><span class="opcode">${op} ${val}</span><span class="desc">${desc}</span>`;
+            dynContainer.appendChild(row);
+
+            if (dynContainer.children.length > 15) {
+                dynContainer.removeChild(dynContainer.firstChild);
+            }
+        }
+
+        setInterval(addDataRow, 400);
+
+        // 初始化
+        buildMatrix();
+        buildTargets();
+        updateBufferSlots();
+
+    </script>
+</body>
+</html>
